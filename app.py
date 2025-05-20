@@ -2,7 +2,11 @@ from flask import Flask, render_template, request, redirect, flash, url_for
 from Controller.controller import agregar_nodo, obtener_nodos, calcular_ruta
 import itertools
 
-app = Flask(__name__, template_folder="View/templates")
+
+
+
+
+app = Flask(__name__, template_folder="View/Templates")
 app.secret_key = 'super-secret-key'  # Necesaria para usar flash
 
 def serializar_nodos(nodos):
@@ -92,4 +96,4 @@ def editar(nombre):
     return redirect('/')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

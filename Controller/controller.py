@@ -2,7 +2,7 @@ from Model.grafo import Grafo
 import os
 
 # Ruta donde se guardarán los nodos
-ruta_json = "data/nodos.json"
+ruta_json = "Data/nodos.json"
 
 # Crear el grafo y cargar desde archivo si existe
 grafo = Grafo()
@@ -33,7 +33,7 @@ from Model.grafo import Grafo
 import os
 
 # Ruta donde se guardarán los nodos
-ruta_json = "data/nodos.json"
+ruta_json = "Data/nodos.json"
 
 # Crear el grafo y cargar desde archivo si existe
 grafo = Grafo()
