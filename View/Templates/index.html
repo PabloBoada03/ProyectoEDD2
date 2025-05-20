@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>UBS - Sistema de Navegación</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+            margin: 0;
+            padding: 30px 40px;
+        }
+
+        h1 {
+            background-color: #1f2937;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+        }
+
+        form {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: 600;
+        }
+
+        input, select, button {
+            margin: 5px 5px 10px 0;
+            padding: 8px 10px;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+        }
+
+        button {
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button[type="submit"] {
+            background-color: #10b981;
+            color: white;
+            border: none;
+        }
+
+        button[type="submit"]:hover {
+            background-color: #059669;
+        }
+
+        .btn-delete {
+            background-color: #ef4444;
+            color: white;
+            border: none;
+        }
+
+        .btn-delete:hover {
+            background-color: #dc2626;
+        }
+
+        .btn-edit {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+        }
+
+        .btn-edit:hover {
+            background-color: #2563eb;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 15px;
+        }
+
+        #map {
+            width: 100%;
+            height: 450px;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+        }
+
+        .mensaje {
+            background-color: #d1fae5;
+            border: 1px solid #10b981;
+            color: #065f46;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="mensaje">
+          {% for message in messages %}
+            <p>{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <h1>Sistema de Navegación para Agencia de Logística (UPS)</h1>
+
+    <h2>Agregar Nodo</h2>
+    <form action="/agregar" method="post">
+        <label>Nombre:</label>
+        <input name="nombre" required>
+        <label>Latitud:</label>
+        <input name="lat" required type="number" step="any">
+        <label>Longitud:</label>
+        <input name="lon" required type="number" step="any">
+        <button type="submit">Agregar</button>
+    </form>
+
+    <h2>Calcular Ruta con Paradas</h2>
+    <form action="/ruta" method="post">
+        <label>Inicio:</label>
+        <select name="inicio" required>
+            {% for nombre in nodos %}
+                <option value="{{ nombre }}">{{ nombre }}</option>
+            {% endfor %}
+        </select>
+
+        <label>Paradas intermedias:</label><br>
+        <select name="intermedios" multiple size="5">
+            {% for nombre in nodos %}
+                <option value="{{ nombre }}">{{ nombre }}</option>
+            {% endfor %}
+        </select><br><small>(Mantén CTRL para seleccionar varias)</small><br><br>
+
+        <label>Fin:</label>
+        <select name="fin" required>
+            {% for nombre in nodos %}
+                <option value="{{ nombre }}">{{ nombre }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Calcular Ruta</button>
+    </form>
+
+    {% if camino %}
+        <h3>Ruta óptima encontrada:</h3>
+        <p>{{ camino | join(" → ") }}</p>
+        <p><strong>Distancia total:</strong> {{ "%.2f"|format(costo) }} millas</p>
+    {% endif %}
+
+    <h2>Nodos Actuales</h2>
+    <ul>
+        {% for nombre, nodo in nodos.items() %}
+            <li>
+                <strong>{{ nombre }}</strong> (Lat: {{ nodo.latitud }}, Lon: {{ nodo.longitud }})
+                <a href="/eliminar/{{ nombre }}" class="btn-delete" onclick="return confirm('¿Eliminar nodo {{ nombre }}?')">❌</a>
+                <button class="btn-edit" type="button" onclick="mostrarFormulario('{{ nombre }}')">✏️</button>
+
+                <div id="formulario-{{ nombre }}" style="display:none; margin-top:5px;">
+                    <form action="/editar/{{ nombre }}" method="post" style="display:inline;">
+                        <input type="text" name="nuevo_nombre" value="{{ nombre }}" required>
+                        <input type="number" step="any" name="nueva_lat" placeholder="Lat" required>
+                        <input type="number" step="any" name="nueva_lon" placeholder="Lon" required>
+                        <button type="submit">Guardar</button>
+                        <button type="button" onclick="ocultarFormulario('{{ nombre }}')">Cancelar</button>
+                    </form>
+                </div>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <h2>Mapa de Nodos y Ruta</h2>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const nodos = {{ nodos_json | tojson }};
+        const camino = {{ camino | tojson if camino else "[]" }};
+
+        const mapa = L.map('map').setView([25.76, -80.19], 4);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(mapa);
+
+        for (const [nombre, nodo] of Object.entries(nodos)) {
+            L.marker([nodo.latitud, nodo.longitud])
+                .addTo(mapa)
+                .bindPopup(`<strong>${nombre}</strong><br>Lat: ${nodo.latitud}<br>Lon: ${nodo.longitud}`);
+        }
+
+        if (camino.length > 1) {
+            const puntosRuta = camino.map(nombre => {
+                const n = nodos[nombre];
+                return [n.latitud, n.longitud];
+            });
+
+            L.polyline(puntosRuta, { color: 'blue' }).addTo(mapa);
+            mapa.fitBounds(puntosRuta);
+        }
+
+        function mostrarFormulario(nombre) {
+            document.getElementById("formulario-" + nombre).style.display = "inline";
+        }
+
+        function ocultarFormulario(nombre) {
+            document.getElementById("formulario-" + nombre).style.display = "none";
+        }
+    </script>
+</body>
+</html>
+
+
